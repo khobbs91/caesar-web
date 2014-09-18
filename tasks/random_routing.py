@@ -19,13 +19,10 @@ import logging
 
 __all__ = ['assign_tasks']
 
-def assign_tasks(review_milestone, reviewer, tasks_to_assign=None, simulate=False):
-	# check if tasks_to_assign == None. If true: set it to num required by milestone - num already assigned
-	if tasks_to_assign == None:
-		tasks_to_assign = num_tasks_for_user(review_milestone, reviewer)
-
+# filter all chunks to return only the ones that can be assigned to the reviewer
+def get_reviewable_chunks(review_milestone, reviewer):
 	# get the chunks for the milestone
-	chunks = Chunk.objects.all();
+	chunks = Chunk.objects.all()
 	chunks = chunks.filter(file__submission__milestone=review_milestone.submit_milestone)
 	# remove chunks already assigned to reviewer
 	chunks = chunks.exclude(tasks__reviewer=reviewer)
@@ -39,25 +36,32 @@ def assign_tasks(review_milestone, reviewer, tasks_to_assign=None, simulate=Fals
 	chunks = chunks.exclude(pk__in=chunks.filter(file__submission__authors__id=reviewer.id))
 	chunks = chunks.select_related('id','file__submission__id','file__submission__authors')
 
-	# remove chunks that the reviewer authored
-	# chunks_to_choose_from = [c for c in chunks if reviewer not in c.file.submission.authors.filter()]
 	# randomly order the chunks
 	chunks_list = list(chunks)
 	random.shuffle(chunks_list)
+	return chunks_list
+
+def assign_tasks(review_milestone, reviewer, tasks_to_assign=None, simulate=False):
+	# check if tasks_to_assign == None. If true: set it to num required by milestone - num already assigned
+	if tasks_to_assign == None:
+		tasks_to_assign = num_tasks_for_user(review_milestone, reviewer)
+
+	chunks = get_reviewable_chunks(review_milestone, reviewer)
+
 	# take the first num_tasks_for_user chunks
-	chunks_to_assign = chunks_list[:tasks_to_assign]
+	chunks_to_assign = chunks[:tasks_to_assign]
 	# if len(chunks_to_assign) < num_tasks_for_user, the reviewer will be assigned fewer
 	# tasks than they should be and they will be assigned more tasks the next time they
 	# log in if there are more tasks they can be assigned
 
-	# create tasks for the first tasks_to_assign chunks and save them
-	for c in chunks_to_assign:
-		task = Task(reviewer_id=reviewer.id, chunk_id=c.id, milestone=review_milestone, submission_id=c.file.submission.id)
-		if not simulate:
+	if not simulate:
+		# create tasks for the first tasks_to_assign chunks and save them
+		for c in chunks_to_assign:
+			task = Task(reviewer_id=reviewer.id, chunk_id=c.id, milestone=review_milestone, submission_id=c.file.submission.id)
 			task.save()
 	return chunks_to_assign
 
-# this method ignores any tasks already int eh database for this milestone
+# this method ignores any tasks already in the database for this milestone
 def simulate_tasks(review_milestone):
 	reviewers = User.objects.filter(membership__semester=review_milestone.assignment.semester)
 	reviewers_list = list(reviewers)
@@ -76,14 +80,15 @@ def simulate_tasks(review_milestone):
 
 def num_tasks_for_user(review_milestone, user):
 	member = Member.objects.get(user=user, semester=review_milestone.assignment.semester)
+	num_tasks_already_assigned = Task.objects.filter(reviewer=user, milestone=review_milestone).count()
+	num_tasks = 0
 	if member.role == Member.STUDENT:
-	  return review_milestone.student_count
+		num_tasks = review_milestone.student_count
 	elif member.role == Member.TEACHER:
-	  return review_milestone.staff_count
+		num_tasks = review_milestone.staff_count
 	elif member.role == Member.VOLUNTEER:
-	  return review_milestone.alum_count
-	else:
-	  return 0
+		num_tasks = review_milestone.alum_count
+	return num_tasks - num_tasks_already_assigned
 
 def list_chunks_to_exclude(review_milestone):
 	to_exclude = review_milestone.chunks_to_exclude
