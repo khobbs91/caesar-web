@@ -21,6 +21,14 @@ DATABASES = {
         'HOST': '',
         'PORT': '',
     }
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.mysql',
+    #     'NAME': 'caesar.db',
+    #     'USER': '',
+    #     'PASSWORD': '',
+    #     'HOST': '',
+    #     'PORT': '',
+    # }
 }
 
 EMAIL_HOST = 'localhost'

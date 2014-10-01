@@ -32,7 +32,7 @@ for r in reviewers:
   num_tasks_to_assign = rr.num_tasks_for_user(review_milestone, r)
   print "reviewer:",r,"("+role+" - needs "+str(num_tasks_to_assign)+" chunks)"
   print "num reviewable chunks:",len(rr.get_reviewable_chunks(review_milestone, r))
-  chunks_to_assign = rr.assign_tasks(review_milestone, r, tasks_to_assign=None, simulate=True)
+  chunks_to_assign = rr.assign_tasks(review_milestone, r, tasks_to_assign=None, simulate=False)
   print "chunks assigned:",[c.id for c in chunks_to_assign]
   num_chunks+=len(chunks_to_assign)
   print

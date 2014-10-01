@@ -14,6 +14,7 @@ from chunks.models import Chunk, ReviewMilestone
 from accounts.models import Member
 import random
 import sys
+from django.db.models import Q
 # import app_settings
 import logging
 
@@ -29,9 +30,11 @@ def get_reviewable_chunks(review_milestone, reviewer):
 	# remove chunks that have too few student-generated lines
 	chunks = chunks.exclude(student_lines__lt=review_milestone.min_student_lines)
 	# remove chunks that aren't selected for review
-	chunks = chunks.exclude(name__in=list_chunks_to_exclude(review_milestone))
-	# remove chunks that already have enough reviewers
-	chunks = chunks.annotate(num_tasks=Count('tasks')).exclude(num_tasks__gte=num_tasks_for_user(review_milestone, reviewer))
+	chunks = chunks.exclude(name__in=list_chunks_to_exclude(review_milestone))	
+	# remove chunks that already have enough reviewers of the same type (teacher, student, voluteer)
+	same_role_reviewers = get_same_role_reviewers(chunks,review_milestone,reviewer)
+	chunks = chunks.exclude(pk__in=same_role_reviewers)
+	# chunks = chunks.annotate(num_tasks=Count('tasks')).exclude(num_tasks__gte=num_tasks_for_user(review_milestone, reviewer))
 	# remove chunks that the reviewer authored
 	chunks = chunks.exclude(pk__in=chunks.filter(file__submission__authors__id=reviewer.id))
 	chunks = chunks.select_related('id','file__submission__id','file__submission__authors')
@@ -78,17 +81,45 @@ def simulate_tasks(review_milestone):
 				chunk_id_task_map[c.id] = [task]
 	return chunk_id_task_map
 
+def get_same_role_reviewers(chunks,review_milestone,reviewer):
+	reviewer_role = reviewer.membership.get(semester=review_milestone.assignment.semester).role
+	if reviewer_role == Member.STUDENT or reviewer_role == Member.VOLUNTEER:
+		same_role_members = Member.objects.filter(semester=review_milestone.assignment.semester).filter(Q(role=Member.STUDENT)|Q(role=Member.VOLUNTEER))
+	elif reviewer_role == Member.TEACHER:
+		same_role_members = Member.objects.filter(semester=review_milestone.assignment.semester).filter(role=Member.TEACHER)
+	# get all tasks for chunks in this ReviewMilestone with reviewers that have the same role in the class
+	tasks_same_role = Task.objects.filter(milestone=review_milestone).filter(reviewer__membership__pk__in=same_role_members)
+	# get all chunks that already have enough reviewers with the same role in the class
+	tasks_same_role = tasks_same_role.values('chunk').annotate(Count('id')).values('chunk').order_by()
+	chunks_enough_same_role_tasks = tasks_same_role.filter(id__count__gte=num_tasks_for_role(review_milestone,reviewer_role))
+	chunks = chunks.filter(id__in=chunks_enough_same_role_tasks)
+	return chunks
+
+# return the maximum allowable number of tasks for a given role for a given chunk
+# ex: chunks can only have 1 teacher reviewer
+# ex: chunks can only have up to 2 student/volunteer reviewers
+# TODO: where should I get these number from? Are they in the code somewhere?
+def num_tasks_for_role(review_milestone,role):
+	if role == Member.STUDENT:
+		num_role_per_chunk = 2
+	elif role == Member.TEACHER:
+		num_role_per_chunk = 1
+	elif role == Member.VOLUNTEER:
+		num_role_per_chunk = 2
+	return num_role_per_chunk
+
 def num_tasks_for_user(review_milestone, user):
 	member = Member.objects.get(user=user, semester=review_milestone.assignment.semester)
-	num_tasks_already_assigned = Task.objects.filter(reviewer=user, milestone=review_milestone).count()
-	num_tasks = 0
+	# num_tasks_already_assigned = Task.objects.filter(reviewer=user, milestone=review_milestone).count()
+	num_tasks_per_role = 0
 	if member.role == Member.STUDENT:
-		num_tasks = review_milestone.student_count
+		num_tasks_per_role = review_milestone.student_count
 	elif member.role == Member.TEACHER:
-		num_tasks = review_milestone.staff_count
+		num_tasks_per_role = review_milestone.staff_count
 	elif member.role == Member.VOLUNTEER:
-		num_tasks = review_milestone.alum_count
-	return num_tasks - num_tasks_already_assigned
+		num_tasks_per_role = review_milestone.alum_count
+	# return min(0,num_tasks_per_role - num_tasks_already_assigned)
+	return num_tasks_per_role
 
 def list_chunks_to_exclude(review_milestone):
 	to_exclude = review_milestone.chunks_to_exclude
