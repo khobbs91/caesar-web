@@ -82,11 +82,14 @@ def simulate_tasks(review_milestone):
 	return chunk_id_task_map
 
 def get_same_role_reviewers(chunks,review_milestone,reviewer):
+	# get the reviewer's role
 	reviewer_role = reviewer.membership.get(semester=review_milestone.assignment.semester).role
+	# get all members with the same role in the class
+	same_role_members = Member.objects.filter(semester=review_milestone.assignment.semester)
 	if reviewer_role == Member.STUDENT or reviewer_role == Member.VOLUNTEER:
-		same_role_members = Member.objects.filter(semester=review_milestone.assignment.semester).filter(Q(role=Member.STUDENT)|Q(role=Member.VOLUNTEER))
+		same_role_members = same_role_members.filter(Q(role=Member.STUDENT)|Q(role=Member.VOLUNTEER))
 	elif reviewer_role == Member.TEACHER:
-		same_role_members = Member.objects.filter(semester=review_milestone.assignment.semester).filter(role=Member.TEACHER)
+		same_role_members = same_role_members.filter(role=Member.TEACHER)
 	# get all tasks for chunks in this ReviewMilestone with reviewers that have the same role in the class
 	tasks_same_role = Task.objects.filter(milestone=review_milestone).filter(reviewer__membership__pk__in=same_role_members)
 	# get all chunks that already have enough reviewers with the same role in the class
