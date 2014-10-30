@@ -99,11 +99,20 @@ def set_submit_type(sender, instance, created, **kwargs):
 class ReviewMilestone(Milestone):
     submit_milestone = models.ForeignKey(SubmitMilestone, related_name='review_milestone')
 
+    # number of student, alum, and staff reviewers per chunk
     reviewers_per_chunk = models.IntegerField(default=2)
+    # student_reviewers_per_chunk = models.IntegerField(default=2)
+    # student_reviewers_per_chunk_default = models.IntegerField(default=2)
+    # volunteer_reviewers_per_chunk = models.IntegerField(default=2)
+    # volunteer_reviewers_per_chunk_default = models.IntegerField(default=2)
+    # teacher_reviewers_per_chunk = models.IntegerField(default=1)
+    # teacher_reviewers_per_chunk_default = models.IntegerField(default=1)
+    
     min_student_lines = models.IntegerField(default=30)
     chunks_to_assign = models.TextField(blank = True, null=True) #space separated list of chunk names [name checked, ]
     chunks_to_exclude = models.TextField(blank = True, null=True) #space separated list of chunk names [name checked, ]
 
+    # number of chunks to be assigned to students, alums, and staff in the class
     student_count = models.IntegerField(default=5)
     student_count_default = models.IntegerField(default=5)
     alum_count = models.IntegerField(default=3)
@@ -111,6 +120,7 @@ class ReviewMilestone(Milestone):
     staff_count = models.IntegerField(default=10)
     staff_count_default = models.IntegerField(default=10)
 
+    # number of students, alums, and staff in the class
     students = models.IntegerField(default=199)
     students_default = models.IntegerField(default=199)
     alums = models.IntegerField(default=1)

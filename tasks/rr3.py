@@ -44,14 +44,8 @@ for i in range(1):
 	rr_chunk.save()
 	rr_file.chunks.add(rr_chunk)
 	rr_chunks.append(rr_chunk)
-rr_chunk = Chunk.objects.filter(student_lines__gte=5)[0]
-rr_chunk.pk = None
-rr_chunk.name = "chunk_no_tasks"
-rr_chunk.file = rr_file
-rr_chunk.save()
-rr_file.chunks.add(rr_chunk)
-rr_chunks.append(rr_chunk)
 
+# add enough tasks so that no one else will be assigned to the chunk
 student1 = Member.objects.filter(semester=assignment.semester).filter(role='S')[0]
 student2 = Member.objects.filter(semester=assignment.semester).filter(role='S')[1]
 teacher1 = Member.objects.filter(semester=assignment.semester).filter(role='T')[0]
@@ -139,14 +133,14 @@ print
 
 # deleting all the models we created in our test
 rr_submit_milestone.delete()
-rr_submission.delete()
-rr_submission2.delete()
-rr_file.delete()
-rr_file2.delete()
-[c.delete() for c in rr_chunks]
-rr_task1.delete()
-rr_task2.delete()
-rr_task3.delete()
+# rr_submission.delete()
+# rr_submission2.delete()
+# rr_file.delete()
+# rr_file2.delete()
+# [c.delete() for c in rr_chunks]
+# rr_task1.delete()
+# rr_task2.delete()
+# rr_task3.delete()
 
 # chunk_id_task_map = rr.simulate_tasks(review_milestone)
 # sum = 0
