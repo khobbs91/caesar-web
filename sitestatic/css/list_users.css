@@ -1,0 +1,42 @@
+.student{
+	background-color: #AAFEA5;
+}
+
+.volunteer{
+	background-color: #BABEFF;
+}
+
+.teacher{
+	background-color: #BBFEFF;
+}
+
+.nonmember{
+	background-color: #F0F0F0;
+}
+
+table.table{
+	margin-bottom: 0px;
+}
+
+table.user-table{
+	margin-bottom: 20px;
+}
+
+table>tbody>tr>td.td-chunk{
+	padding: 0px;
+}
+
+.membership-role{
+}
+
+.member-info{
+	font-size: large;
+}
+
+table>thead>tr>th {
+	background-color: transparent;
+}
+
+.gray-background {
+	background-color: lightgray;
+}

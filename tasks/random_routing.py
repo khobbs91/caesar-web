@@ -38,7 +38,7 @@ def get_reviewable_chunks(review_milestone, reviewer):
 	chunks_enough_same_role_reviewers = get_chunks_with_enough_same_role_reviewers(chunks,review_milestone,reviewer)
 	chunks = chunks.exclude(pk__in=chunks_enough_same_role_reviewers)
 	# chunks = chunks.annotate(num_tasks=Count('tasks')).exclude(num_tasks__gte=num_tasks_for_user(review_milestone, reviewer))
-	chunks = chunks.select_related('id','file__submission__id','file__submission__authors')
+	chunks = chunks.select_related('file__submission').prefetch_related('file__submission__authors')
 	chunks_enough_same_role_reviewers = chunks_enough_same_role_reviewers.select_related('id','file__submission__id','file__submission__authors')
 
 	# concatenate the 2 lists (but make sure the chunks that need more same role reviewers list is first)
@@ -77,16 +77,17 @@ def simulate_tasks(review_milestone):
 	reviewers = User.objects.filter(membership__semester=review_milestone.assignment.semester)
 	reviewers_list = list(reviewers)
 	random.shuffle(reviewers_list)
-	chunk_id_task_map = {}
-	user_id_task_map = {}
+	chunk_id_task_map = defaultdict(lambda : {})
+	# user_id_task_map = defaultdict(lambda : {})
 	for r in reviewers_list:
 		chunks_to_assign = assign_tasks(review_milestone, r, tasks_to_assign=None, simulate=True)
+		tasks = []
 		for c in chunks_to_assign:
 			task = Task(reviewer_id=r.id, chunk_id=c.id, milestone=review_milestone, submission_id=c.file.submission.id)
-			if c.id in chunk_id_task_map.keys():
-				chunk_id_task_map[c.id] += [task]
-			else:
-				chunk_id_task_map[c.id] = [task]
+			chunk_id_task_map[c.id]['chunk'] = c
+			if 'tasks' in chunk_id_task_map[c.id]:
+			  chunk_id_task_map[c.id]['tasks'].append(task)
+			else: chunk_id_task_map[c.id]['tasks'] = [task]
 	return chunk_id_task_map
 
 # returns list of chunks that already have enough reviewers with the same role as reviewer
