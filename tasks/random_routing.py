@@ -52,15 +52,13 @@ def get_reviewable_chunks(review_milestone, reviewer, simulate=False, chunk_id_t
 def apply_routing_algorithm(chunks, tasks_to_assign, routing_algorithm='random'):
 	algo = routing_algorithms.get(routing_algorithm)
 	# apply the routing algorithm to both querysets in chunks & limit the results to tasks_to_assign
-	chunks_not_enough_same_role_reviewers = list(algo(chunks['chunks_not_enough_same_role_reviewers'])[:tasks_to_assign])
-	chunks_enough_same_role_reviewers = list(algo(chunks['chunks_enough_same_role_reviewers'])[:tasks_to_assign])
-	# concatenate the two querysets together (but make sure the chunks that need more same role reviewers is first)
-	# chunks_list = chain(chunks_not_enough_same_role_reviewers, chunks_enough_same_role_reviewers)
-	chunks_list = chunks_not_enough_same_role_reviewers + chunks_enough_same_role_reviewers
-	# turn it into a list and limit the results to tasks_to_assign (the entire chunks query will be evalutated here)
-	chunks_list = chunks_list[:tasks_to_assign]
-	# chunks_list = list(chain(chunks_not_enough_same_role_reviewers, chunks_enough_same_role_reviewers))
-	return chunks_list
+	chunks_not_enough_same_role_reviewers = algo(chunks['chunks_not_enough_same_role_reviewers'])[:tasks_to_assign]
+	chunks_enough_same_role_reviewers = algo(chunks['chunks_enough_same_role_reviewers'])[:tasks_to_assign]
+	# concatenate the two querysets together (put the chunks that need more same role reviewers are first)
+	# chunks_list = chunks_not_enough_same_role_reviewers + chunks_enough_same_role_reviewers
+	chunks_list = list(chain(chunks_not_enough_same_role_reviewers, chunks_enough_same_role_reviewers))
+	# get the first num_tasks_for_user chunks to assign to the reviewer
+	return chunks_list[:tasks_to_assign]
 
 # randomly order the chunks
 def routing_algorithm_random(chunks):
@@ -79,9 +77,7 @@ def assign_tasks(review_milestone, reviewer, routing_algorithm='random', tasks_t
 		tasks_to_assign = get_num_tasks_for_user(review_milestone, reviewer, simulate=simulate)
 	# get all the chunks that the reviewer can review in the order they should be assigned
 	reviewable_chunks = get_reviewable_chunks(review_milestone, reviewer, simulate=simulate, chunk_id_task_map=chunk_id_task_map)
-	chunks = apply_routing_algorithm(reviewable_chunks, tasks_to_assign, routing_algorithm=routing_algorithm)
-	# get the first num_tasks_for_user chunks to assign to the reviewer
-	chunks_to_assign = chunks[:tasks_to_assign]
+	chunks_to_assign = apply_routing_algorithm(reviewable_chunks, tasks_to_assign, routing_algorithm=routing_algorithm)
 	# if len(chunks_to_assign) < num_tasks_for_user, the reviewer will be assigned fewer
 	# tasks than they should be and they will be assigned more tasks the next time they
 	# log in if there are more tasks they can be assigned
