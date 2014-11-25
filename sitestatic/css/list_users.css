@@ -1,42 +1,60 @@
-.student{
+.student, .badge.student{
 	background-color: #AAFEA5;
 }
 
-.volunteer{
+.volunteer, .badge.volunteer{
 	background-color: #BABEFF;
 }
 
-.teacher{
+.teacher, .badge.teacher{
 	background-color: #BBFEFF;
 }
 
-.nonmember{
+.nonmember, .badge.nonmember{
 	background-color: #F0F0F0;
 }
 
-table.table{
-	margin-bottom: 0px;
+span.badge {
+	color: black;
 }
 
-table.user-table{
-	margin-bottom: 20px;
+table.chunk-table{
+	margin-bottom: 0px;
 }
 
 table>tbody>tr>td.td-chunk{
 	padding: 0px;
 }
 
-.membership-role{
-}
-
 .member-info{
 	font-size: large;
 }
 
-table>thead>tr>th {
+table>thead>tr>th{
 	background-color: transparent;
 }
 
-.gray-background {
+.gray-background{
 	background-color: lightgray;
+}
+
+.col-xs-6.no-padding{
+	padding: 0px;
+}
+
+.row, .no-margin{
+	margin: 0px;
+}
+
+.user-row {
+	margin-bottom: 20px;
+	/*border: 1px solid black;*/
+}
+
+.inline-div {
+	display: inline;
+}
+
+.author-reviewer {
+	background-color: red;
 }
