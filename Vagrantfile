@@ -6,9 +6,11 @@ Vagrant.configure("2") do |config|
   config.vm.provider :virtualbox do |vb|
     vb.customize [ "setextradata", :id,
                    "VBoxInternal2/SharedFoldersEnableSymlinksCreate/v-root", "1" ]
+	vb.customize ["modifyvm", :id, "--memory", "1024"]
   end
 
   config.vm.network :private_network, ip: "10.18.6.30"
+  config.vm.network "forwarded_port", guest: 8000, host: 8000
 
   config.vm.synced_folder "./", "/var/django/caesar", group: 'www-data'
 

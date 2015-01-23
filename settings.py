@@ -15,20 +15,13 @@ MANAGERS = ADMINS
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
+        # 'ENGINE': 'django.db.backends.mysql',
         'NAME': 'caesar.db',
         'USER': '',
         'PASSWORD': '',
         'HOST': '',
         'PORT': '',
     }
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.mysql',
-    #     'NAME': 'caesar.db',
-    #     'USER': '',
-    #     'PASSWORD': '',
-    #     'HOST': '',
-    #     'PORT': '',
-    # }
 }
 
 EMAIL_HOST = 'localhost'
