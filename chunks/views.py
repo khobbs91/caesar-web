@@ -5,7 +5,7 @@ from review.models import Comment, Vote, Star
 from tasks.models import Task
 from randomrouting.random_routing import simulate_tasks
 
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template import RequestContext
@@ -23,11 +23,30 @@ import os
 import subprocess
 import datetime
 import sys
+import json
 from collections import defaultdict
+from django.conf import settings
 
 import logging
 from operator import itemgetter, attrgetter
 from django.utils.datastructures import SortedDict
+
+def highlight_chunk_lines(lexer, formatter, staff_lines, chunk, start=None, end=None):
+    [numbers, lines] = zip(*chunk.lines[start:end])
+    # highlight the code this way to correctly identify multi-line constructs
+    # TODO implement a custom formatter to do this instead
+    highlighted = zip(numbers,
+            highlight(chunk.data, lexer, formatter).splitlines()[start:end])
+    highlighted_lines = []
+    staff_line_index = 0
+    for number, line in highlighted:
+        if staff_line_index < len(staff_lines) and number >= staff_lines[staff_line_index].start_line and number <= staff_lines[staff_line_index].end_line:
+            while staff_line_index < len(staff_lines) and number == staff_lines[staff_line_index].end_line:
+                staff_line_index += 1
+            highlighted_lines.append((number, line, True))
+        else:
+            highlighted_lines.append((number, line, False))
+    return highlighted_lines
 
 @login_required
 def view_chunk(request, chunk_id):
@@ -67,22 +86,8 @@ def view_chunk(request, chunk_id):
     comment_data = map(get_comment_data, chunk.comments.prefetch_related('author__profile', 'author__membership__semester'))
 
     lexer = get_lexer_for_filename(chunk.file.path)
-    
     formatter = HtmlFormatter(cssclass='syntax', nowrap=True)
-    numbers, lines = zip(*chunk.lines)
-    # highlight the code this way to correctly identify multi-line constructs
-    # TODO implement a custom formatter to do this instead
-    highlighted = zip(numbers,
-            highlight(chunk.data, lexer, formatter).splitlines())
-    highlighted_lines = []
-    staff_line_index = 0
-    for number, line in highlighted:
-        if staff_line_index < len(staff_lines) and number >= staff_lines[staff_line_index].start_line and number <= staff_lines[staff_line_index].end_line:
-            while staff_line_index < len(staff_lines) and number == staff_lines[staff_line_index].end_line:
-                staff_line_index += 1
-            highlighted_lines.append((number, line, True))
-        else:
-            highlighted_lines.append((number, line, False))
+    highlighted_lines = highlight_chunk_lines(lexer, formatter, staff_lines, chunk)
 
     task_count = Task.objects.filter(reviewer=user) \
             .exclude(status='C').exclude(status='U').count()
@@ -102,7 +107,7 @@ def view_chunk(request, chunk_id):
             task = Task.objects.filter(chunk=chunk)[0]
         last_task = False
 
-    return render(request, 'chunks/view_chunk.html', {
+    context = {
         'chunk': chunk,
         'similar_chunks': chunk.get_similar_chunks(),
         'highlighted_lines': highlighted_lines,
@@ -114,7 +119,71 @@ def view_chunk(request, chunk_id):
         'articles': [x for x in Article.objects.all() if not x == Article.get_root()],
         'last_task': last_task,
         'remaining_task_count': remaining_task_count,
-    })
+    }
+
+    return render(request, 'chunks/view_chunk.html', context)
+
+@login_required
+def load_similar_comments(request, chunk_id, load_all_staff_comments):
+    if settings.COMMENT_SEARCH:
+        user = request.user
+        chunk = get_object_or_404(Chunk, pk=chunk_id)
+        semester = chunk.file.submission.milestone.assignment.semester
+        subject = semester.subject
+        membership = Member.objects.filter(user=request.user).filter(semester=semester)
+        try:
+            role = membership[0].role
+        except:
+            return HttpResponse()
+
+        if load_all_staff_comments == "True":
+            if role == Member.TEACHER:
+                similarComments = Comment.objects.filter(author__membership__semester=semester).filter(author__membership__role=Member.TEACHER).filter(chunk__file__submission__milestone__assignment__semester__subject=subject).distinct().prefetch_related('chunk__file__submission__authors__profile', 'author__profile')
+            else:
+                similarComments = []
+        else:
+            similarComments = Comment.objects.filter(author=request.user).filter(chunk__file__submission__milestone__assignment__semester__subject=subject).distinct().prefetch_related('chunk__file__submission__authors__profile', 'author__profile')
+
+        similar_comment_data = []
+        for comment in similarComments:
+            if comment.author.get_full_name():
+                author = comment.author.get_full_name()
+            else:
+                author = comment.author.username
+            similar_comment_data.append({
+                'comment': comment.text,
+                'comment_id': comment.id,
+                'chunk_id': comment.chunk.id,
+                'author': author,
+                'author_username': comment.author.username,
+                'reputation': comment.author.profile.reputation,
+            })
+        return HttpResponse(json.dumps({'similar_comment_data': similar_comment_data}), content_type="application/json")
+    return HttpResponse()
+
+@login_required
+def highlight_comment_chunk_line(request, comment_id):
+    if settings.COMMENT_SEARCH:
+        comment = get_object_or_404(Comment, pk=comment_id)
+        chunk = comment.chunk
+        staff_lines = StaffMarker.objects.filter(chunk=chunk).order_by('start_line', 'end_line')
+        lexer = get_lexer_for_filename(chunk.file.path)
+        formatter = HtmlFormatter(cssclass='syntax', nowrap=True)
+        # comment.start is a line number, which is 1-indexed
+        # start is an index into a list of lines, which is 0-indexed
+        start = comment.start-1
+        # comment.end is a line number
+        # end is an index into a list of lines, which excludes the last line
+        end = comment.end
+        highlighted_comment_lines = highlight_chunk_lines(lexer, formatter, staff_lines, comment.chunk, start, end)
+
+        return HttpResponse(json.dumps({
+            'comment_id': comment_id,
+            'file_id': chunk.file.id,
+            'chunk_lines': highlighted_comment_lines,
+            }), content_type="application/json")
+    # Should never get here
+    return HttpResponse() 
 
 @login_required
 def view_all_chunks(request, viewtype, submission_id):
@@ -122,10 +191,7 @@ def view_all_chunks(request, viewtype, submission_id):
     submission = Submission.objects.get(id = submission_id)
     semester = Semester.objects.get(assignments__milestones__submitmilestone__submissions=submission)
     authors = User.objects.filter(submissions=submission)
-
-    # block a user who's crawling
-    if user.username=="dekehu":
-        raise Http404
+    is_reviewer = Task.objects.filter(submission=submission, reviewer=user).exists()
 
     try:
         user_membership = Member.objects.get(user=user, semester=semester)
@@ -135,7 +201,7 @@ def view_all_chunks(request, viewtype, submission_id):
         # # you aren't django staff
         # #   and
         # # you aren't an author of the submission
-        if not user_membership.is_teacher() and not user.is_staff and not (user in authors):
+        if not user_membership.is_teacher() and not user.is_staff and not (user in authors) and not is_reviewer:
             raise PermissionDenied
     except Member.MultipleObjectsReturned:
         raise Http404 # you can't be multiple members for a class so this should never get called
