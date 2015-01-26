@@ -13,8 +13,8 @@ class RandomroutingRouter(object):
         """
         use_test_db = (os.getenv('USE_TEST_DB') != None)
 #        print 'usetestdb', use_test_db
-        # if use_test_db:
-        #     return 'test'
+        if use_test_db:
+            return 'test'
         return None
 
     def db_for_write(self, model, **hints):
@@ -22,8 +22,8 @@ class RandomroutingRouter(object):
         Attempts to write randomrouting models go to test.
         """
         use_test_db = (os.getenv('USE_TEST_DB') != None)
-        # if use_test_db:
-        #     return 'test'
+        if use_test_db:
+            return 'test'
         return None
 
     # def allow_relation(self, obj1, obj2, **hints):

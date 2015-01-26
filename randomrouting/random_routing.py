@@ -23,28 +23,46 @@ import copy
 __all__ = ['assign_tasks']
 
 # filter all chunks to return only the ones that can be assigned to the reviewer
-def get_reviewable_chunks(review_milestone, reviewer, simulate=False, chunk_id_task_map={}):
+def get_reviewable_chunks(review_milestone, reviewer, reviewer_role, simulate=False, chunk_id_task_map={}):
 	reviewer_id = reviewer['id'] if simulate else reviewer.id
-	# get the chunks for the milestone
-	chunks = Chunk.objects.all()
-	# remove chunks that aren't in this submit_milestone
-	chunks = chunks.filter(file__submission__milestone=review_milestone.submit_milestone)
-	# remove chunks that have too few student-generated lines
-	chunks = chunks.exclude(student_lines__lt=review_milestone.min_student_lines)
-	# remove chunks that aren't selected for review
-	chunks = chunks.exclude(name__in=list_chunks_to_exclude(review_milestone))
-	# remove chunks already assigned to reviewer
+	# # get the chunks for the milestone
+	# chunks = Chunk.objects.all()
+	# # remove chunks that aren't in this submit_milestone
+	# chunks = chunks.filter(file__submission__milestone=review_milestone.submit_milestone)
+	# # remove chunks that have too few student-generated lines
+	# chunks = chunks.exclude(student_lines__lt=review_milestone.min_student_lines)
+	# # remove chunks that aren't selected for review
+	# chunks = chunks.exclude(name__in=list_chunks_to_exclude(review_milestone))
+	# # remove chunks already assigned to reviewer
 	# chunks = chunks.exclude(tasks__reviewer__id=reviewer_id)
-	chunks = chunks.exclude(id__in=chunks.filter(tasks__reviewer__id=reviewer_id))
-	# calling exclude directly takes 12 sec versus filtering and then excluding which takes 40 ms
-	# remove chunks that the reviewer authored
-	# chunks = chunks.exclude(tasks__reviewer__id=reviewer_id)
-	chunks = chunks.exclude(id__in=chunks.filter(file__submission__authors__id=reviewer_id))
-	# get chunks that already have enough reviewers of the same type (teacher, student, voluteer)
-	chunks_enough_same_role_reviewers = get_chunks_with_enough_same_role_reviewers(chunks,review_milestone,reviewer,simulate=simulate,chunk_id_task_map=chunk_id_task_map)
-	# remove chunks that already have enough reviewers of the same type
-	chunks = chunks.exclude(pk__in=chunks_enough_same_role_reviewers)
-	# chunks = chunks.select_related('file__submission').prefetch_related('file__submission__authors')
+	# # chunks = chunks.exclude(id__in=chunks.filter(tasks__reviewer__id=reviewer_id))
+	# # calling exclude directly takes 12 sec versus filtering and then excluding which takes 40 ms
+	# # remove chunks that the reviewer authored
+	# chunks = chunks.exclude(file__submission__authors__id=reviewer_id)
+	# # chunks = chunks.exclude(id__in=chunks.filter(file__submission__authors__id=reviewer_id))
+	
+	# # get chunks that already have enough reviewers of the same type (teacher, student, voluteer)
+	# chunks_enough_same_role_reviewers = get_chunks_with_enough_same_role_reviewers(chunks,review_milestone,reviewer,simulate=simulate,chunk_id_task_map=chunk_id_task_map)
+	# # remove chunks that already have enough reviewers of the same type
+	# chunks = chunks.exclude(pk__in=chunks_enough_same_role_reviewers)
+	# # chunks = chunks.select_related('file__submission').prefetch_related('file__submission__authors')
+	# chunks = chunks.values('id','name','file__submission__id')
+	# chunks_enough_same_role_reviewers = chunks_enough_same_role_reviewers.values('id','name','file__submission__id')
+	# return {'chunks_enough_same_role_reviewers':chunks_enough_same_role_reviewers,'chunks_not_enough_same_role_reviewers':chunks}
+
+	# reviewer_role_display = dict(Member.ROLE_CHOICES).get(reviewer_role)
+	num_role_tasks = get_num_tasks_for_role(review_milestone,reviewer_role)
+	# putting everything inside a single filter as a test
+	chunks = Chunk.objects.filter(file__submission__milestone=review_milestone.submit_milestone).exclude(student_lines__lt=review_milestone.min_student_lines, name__in=list_chunks_to_exclude(review_milestone), tasks__reviewer__id=reviewer_id, file__submission__authors__id=reviewer_id)
+	if reviewer_role == Member.STUDENT or reviewer_role == Member.VOLUNTEER:
+		chunks = chunks.filter(chunk_review__student_alum_reviewers__lt=num_role_tasks)
+		chunks_enough_same_role_reviewers = chunks.filter(chunk_review__student_alum_reviewers__gte=num_role_tasks)
+	elif reviewer_role == Member.TEACHER:
+		chunks = chunks.filter(chunk_review__staff_reviewers__lt=num_role_tasks)
+		chunks_enough_same_role_reviewers = chunks.filter(chunk_review__staff_reviewers__gte=num_role_tasks)
+	else:
+		chunks_enough_same_role_reviewers = chunks
+		chunks = Chunk.objects.none()
 	chunks = chunks.values('id','name','file__submission__id')
 	chunks_enough_same_role_reviewers = chunks_enough_same_role_reviewers.values('id','name','file__submission__id')
 	return {'chunks_enough_same_role_reviewers':chunks_enough_same_role_reviewers,'chunks_not_enough_same_role_reviewers':chunks}
@@ -76,8 +94,13 @@ def assign_tasks(review_milestone, reviewer, routing_algorithm='random', tasks_t
 	# if tasks_to_assign == None, set tasks_to_assign equal to number required by the milestone for the reviewer's role
 	if tasks_to_assign == None:
 		tasks_to_assign = get_num_tasks_for_user(review_milestone, reviewer, simulate=simulate)
+	reviewer_role = None
+	if simulate:
+		reviewer_role = reviewer['membership__role']
+	else:
+		reviewer_role = reviewer.membership.get(semester=review_milestone.assignment.semester).role
 	# get all the chunks that the reviewer can review in the order they should be assigned
-	reviewable_chunks = get_reviewable_chunks(review_milestone, reviewer, simulate=simulate, chunk_id_task_map=chunk_id_task_map)
+	reviewable_chunks = get_reviewable_chunks(review_milestone, reviewer, reviewer_role, simulate=simulate, chunk_id_task_map=chunk_id_task_map)
 	chunks_to_assign = apply_routing_algorithm(reviewable_chunks, tasks_to_assign, routing_algorithm=routing_algorithm)
 	# if len(chunks_to_assign) < num_tasks_for_user, the reviewer will be assigned fewer
 	# tasks than they should be and they will be assigned more tasks the next time they
@@ -89,6 +112,15 @@ def assign_tasks(review_milestone, reviewer, routing_algorithm='random', tasks_t
 		for chunk in chunks_to_assign:
 			task = Task(reviewer_id=reviewer.id, chunk_id=chunk['id'], milestone=review_milestone, submission_id=chunk['file__submission__id'])
 			task.save()
+			chunk.chunk_review.add_reviewer_id(reviewer.id)
+			if reviewer_role == Member.STUDENT:
+				chunk.chunk_review.student_reviewers += 1
+				chunk.chunk_review.student_alum_reviewers += 1
+			elif reviewer_role == Member.VOLUNTEER:
+				chunk.chunk_review.alum_reviewers += 1
+				chunk.chunk_review.student_alum_reviewers += 1
+			elif reviewer_role == Member.TEACHER:
+				chunk.chunk_review.staff_reviewers += 1
 	return chunks_to_assign
 
 # TODO: use len(list) and queryset.count() because len will evaluate a queryset
@@ -163,7 +195,7 @@ def get_chunks_with_enough_same_role_reviewers(chunks,review_milestone,reviewer,
 			members_same_role = Member.objects.none()
 
 		# get all tasks for chunks in this ReviewMilestone with reviewers that have the same role in the class
-		tasks_same_role = Task.objects.filter(milestone=review_milestone).filter(reviewer__membership__pk__in=members_same_role)
+		tasks_same_role = Task.objects.filter(milestone=review_milestone, reviewer__membership__pk__in=members_same_role)
 		# aggregate tasks by the chunk they're for and count the number of tasks for each chunk
 		tasks_same_role = tasks_same_role.values('chunk').annotate(Count('id'))
 
@@ -179,15 +211,12 @@ def get_chunks_with_enough_same_role_reviewers(chunks,review_milestone,reviewer,
 # ex: chunks can only have up to 2 student/volunteer reviewers
 def get_num_tasks_for_role(review_milestone,role):
 	num_role_per_chunk = 0;
-	if role == Member.STUDENT:
+	if role == Member.STUDENT or role == Member.VOLUNTEER:
 		num_role_per_chunk = review_milestone.reviewers_per_chunk
 		# num_role_per_chunk = 2
 	elif role == Member.TEACHER:
 		# num_role_per_chunk = review_milestone.teacher_reviewers_per_chunk
 		num_role_per_chunk = 1
-	elif role == Member.VOLUNTEER:
-		num_role_per_chunk = review_milestone.reviewers_per_chunk
-		# num_role_per_chunk = 2
 	return num_role_per_chunk
 
 def get_num_tasks_for_user(review_milestone, user, simulate=False):
@@ -213,7 +242,7 @@ def list_chunks_to_exclude(review_milestone):
 	to_exclude = review_milestone.chunks_to_exclude
 	if to_exclude == None:
 		return []
-	return to_exclude.split(",")
+	return to_exclude.split()
 
 
 

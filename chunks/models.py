@@ -263,8 +263,6 @@ class ChunkManager(models.Manager):
     def find_by_assignment(self, assignment):
         return self.filter(file__submission__milestone__assignment=assignment)
 
-import pdb
-
 class Chunk(models.Model):
     CLASS_TYPE_CHOICES = (
         ('ENUM', 'enum'),
