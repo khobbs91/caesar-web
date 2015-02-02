@@ -42,7 +42,7 @@
                         <th>{{chunk.name}}</th>
                         {% for role, reviewers in chunk.reviewers.items %}
                           {% for reviewer in reviewers %}
-                            <td class='{{role}} {% if type == "submitted" and user_data.user.username == reviewer.username %}author-reviewer{% endif %}'>{{reviewer.username}}</td>
+                            <td class='{{role}} {% if type == "submitted" and user_data.user.username == reviewer.username %}author-reviewer'>ALERT {% else %}'>{% endif %}{{reviewer.username}}</td>
                           {% endfor %}
                         {% endfor %}
                       </tr>

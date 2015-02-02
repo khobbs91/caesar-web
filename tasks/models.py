@@ -1,12 +1,7 @@
 from datetime import datetime
-
 from django.db import models
-from django.db.models import Count
-
 from django.contrib.auth.models import User
-from accounts.models import UserProfile
 from chunks.models import Chunk, ReviewMilestone, Submission
-import app_settings
 
 class ChunkReview(models.Model):
     chunk = models.OneToOneField(Chunk, related_name='chunk_review', null=True, blank=True)
@@ -17,10 +12,14 @@ class ChunkReview(models.Model):
     staff_reviewers = models.IntegerField(default=0)
     # reviewer_ids = models.TextField(blank=True) #space separated list of chunk names [name checked, ]
 
-    # def add_reviewer_id(id):
+    # def reset(self):
+    #     self.student_or_alum_reviewers = 0
+    #     self.staff_reviewers = 0
+
+    # def add_reviewer_id(self,id):
     #     self.reviewer_ids += ' ' + str(id)
 
-    # def remove_reviewer_id(id):
+    # def remove_reviewer_id(self,id):
     #     self.reviewer_ids = self.reviewer_ids.replace(' '+str(id),'')
 
     # def reviewer_ids(self):
@@ -40,7 +39,7 @@ class Task(models.Model):
     
     submission = models.ForeignKey(Submission, related_name='tasks', null=True, blank=True)
     chunk = models.ForeignKey(Chunk, related_name='tasks', null=True, blank=True)
-    chunk_review = models.ForeignKey(ChunkReview, related_name='chunk_review', null=True, blank=True)
+    chunk_review = models.ForeignKey(ChunkReview, related_name='tasks', null=True, blank=True)
     reviewer = models.ForeignKey(User, related_name='tasks', null=True)
     milestone = models.ForeignKey(ReviewMilestone, related_name='tasks')
     status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='N')
