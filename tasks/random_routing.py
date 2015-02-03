@@ -97,7 +97,7 @@ def assign_tasks(review_milestone, reviewer, routing_algorithm='random', tasks_t
 			# create a task
 			task = Task(reviewer=reviewer, chunk=chunk, milestone=review_milestone, submission=chunk.file.submission, chunk_review=chunk_review)
 			task.save()
-	return chunks_to_assign
+	return len(chunks_to_assign)
 
 # TODO: use len(list) and queryset.count() because len will evaluate a queryset
 # TODO: prefetch_related('assignment__semester') for review_milestone
