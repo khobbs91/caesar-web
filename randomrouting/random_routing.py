@@ -23,8 +23,8 @@ def get_reviewable_chunks(review_milestone, reviewer, reviewer_role, simulate=Fa
 	# remove chunks already assigned to reviewer
 	chunks = chunks.exclude(chunk_review__tasks__reviewer__id=reviewer_id)
 	# remove chunks that the reviewer authored
-	# chunks that the reviewered authored are ONLY caught by filter--NOT exclude. This is a django bug
-	chunks = chunks.exclude(id__in=chunks.filter(file__submission__authors__id=reviewer_id))
+	# chunks that the reviewer authored are ONLY caught by filter--NOT exclude. This is a django bug
+	chunks = chunks.exclude(id__in=Chunk.objects.filter(file__submission__authors__id=reviewer_id))
 	
 	# number of tasks the reviewer should be assigned based on their role in the class
 	num_role_tasks = get_num_tasks_for_role(review_milestone,reviewer_role)
@@ -86,7 +86,6 @@ def assign_tasks(review_milestone, reviewer, routing_algorithm='random', tasks_t
 	if not simulate:
 		# create tasks for the chunks in chunks_to_assign and save them
 		for chunk in chunks_to_assign:
-			# c = Chunk.objects.get(id=chunk['id'])
 			# create a ChunkReview if one doesn't already exist
 			chunk_review, created = ChunkReview.objects.get_or_create(chunk=chunk)
 			# update the ChunkReview
@@ -104,6 +103,7 @@ def assign_tasks(review_milestone, reviewer, routing_algorithm='random', tasks_t
 # TODO: prefetch_related('assignment__semester') for review_milestone
 # this method ignores any tasks already in the database for this milestone
 def simulate_tasks(review_milestone, routing_algorithm='random'):
+	raise Exception('simulate not working right now')
 	semester = review_milestone.assignment.semester
 	# create a dictionary to translate Member roles (S,T,V) into words (student, teacher, volunteer)
 	member_roles = dict(Member.ROLE_CHOICES)
@@ -127,65 +127,21 @@ def simulate_tasks(review_milestone, routing_algorithm='random'):
 		if reviewer['membership__semester__id'] == semester.id:
 			# get the reviewer's role
 			# reviewer_role_display = member_roles.get(reviewer.membership.get(semester=review_milestone.assignment.semester).role)
-			# reviewer_role_display = member_roles.get(reviewer.membership.get(semester=review_milestone.assignment.semester).role)
 			reviewer_role_display = member_roles.get(reviewer['membership__role'])
 			# get the chunks to assign to the reviewer
 			chunks_to_assign = assign_tasks(review_milestone, reviewer, routing_algorithm=routing_algorithm, tasks_to_assign=None, simulate=True, chunk_id_task_map=chunk_id_task_map)
 			# tasks = []
 			for chunk in chunks_to_assign:
-				# task = Task(reviewer_id=reviewer.id, chunk_id=chunk['id'], milestone=review_milestone, submission_id=chunk['file__submission__id'])
-				if chunk['id'] not in chunk_id_task_map.keys():
-					chunk_id_task_map[chunk['id']] = {'chunk':chunk,'tasks':copy.deepcopy(tasks)}
-				current_reviewers = chunk_id_task_map[chunk['id']]['tasks'][reviewer_role_display]
-				chunk_id_task_map[chunk['id']]['tasks'][reviewer_role_display] = current_reviewers + [{'username':reviewer['username'],'id':reviewer['id']}]
-				# chunk_id_task_map[chunk['id']]['tasks'][reviewer_role_display].append(reviewer)
+				# task = Task(reviewer_id=reviewer.id, chunk_id=chunk.id, milestone=review_milestone, submission_id=chunk['file__submission__id'])
+				if chunk.id not in chunk_id_task_map.keys():
+					chunk_id_task_map[chunk.id] = {'chunk':chunk,'tasks':copy.deepcopy(tasks)}
+				current_reviewers = chunk_id_task_map[chunk.id]['tasks'][reviewer_role_display]
+				chunk_id_task_map[chunk.id]['tasks'][reviewer_role_display] = current_reviewers + [{'username':reviewer['username'],'id':reviewer['id']}]
+				# chunk_id_task_map[chunk.id]['tasks'][reviewer_role_display].append(reviewer)
 	return chunk_id_task_map
 
-# # returns list of chunks that already have enough reviewers with the same role as reviewer
-# def get_chunks_with_enough_same_role_reviewers(chunks,review_milestone,reviewer,simulate=False,chunk_id_task_map={}):
-# 	member_roles = dict(Member.ROLE_CHOICES)
-# 	# get the reviewer's role
-# 	reviewer_role = None
-# 	reviewer_role_display = None
-# 	if simulate:
-# 		reviewer_role = reviewer['membership__role']
-# 		reviewer_role_display = member_roles.get(reviewer['membership__role'])
-# 	else:
-# 		reviewer_role = reviewer.membership.get(semester=review_milestone.assignment.semester).role
-# 		reviewer_role_display = member_roles.get(reviewer.membership.get(semester=review_milestone.assignment.semester).role)
-# 	chunks_enough_same_role_tasks = []
-# 	if simulate:
-# 		# for chunk in chunk_id_task_map.values():
-# 		# 	num_tasks_for_role = get_num_tasks_for_role(review_milestone,reviewer_role)
-# 		# 	if len(chunk['tasks'][reviewer_role_display]) >= num_tasks_for_role:
-# 		# 		logging.info("accepted")
-# 		# 		chunks_enough_same_role_tasks.append(chunk['chunk'].id)
-# 		chunks_enough_same_role_tasks = [i['chunk']['id'] for i in chunk_id_task_map.values() if len(i['tasks'][reviewer_role_display]) >= get_num_tasks_for_role(review_milestone,reviewer_role)]
-# 	else:
-# 		# get all members with the same role in the class
-# 		members_same_role = Member.objects.filter(semester=review_milestone.assignment.semester)
-# 		if reviewer_role == Member.STUDENT or reviewer_role == Member.VOLUNTEER:
-# 			members_same_role = members_same_role.filter(Q(role=Member.STUDENT)|Q(role=Member.VOLUNTEER))
-# 		elif reviewer_role == Member.TEACHER:
-# 			members_same_role = members_same_role.filter(role=Member.TEACHER)
-# 		else:
-# 			members_same_role = Member.objects.none()
-
-# 		# get all tasks for chunks in this ReviewMilestone with reviewers that have the same role in the class
-# 		tasks_same_role = Task.objects.filter(milestone=review_milestone, reviewer__membership__pk__in=members_same_role)
-# 		# aggregate tasks by the chunk they're for and count the number of tasks for each chunk
-# 		tasks_same_role = tasks_same_role.values('chunk').annotate(Count('id'))
-
-# 		# remove chunks that need more same role reviewers
-# 		chunks_enough_same_role_tasks = tasks_same_role.filter(id__count__gte=get_num_tasks_for_role(review_milestone,reviewer_role)).values('chunk')
-
-# 	# get all chunks that already have enough reviewers with the same role in the class
-# 	chunks_enough_same_role_reviewers = chunks.filter(id__in=chunks_enough_same_role_tasks)
-# 	return chunks_enough_same_role_reviewers
-
 # return the maximum allowable number of tasks for a given role for a given chunk
-# ex: chunks can only have 1 teacher reviewer
-# ex: chunks can only have up to 2 student/volunteer reviewers
+# chunks can only have 1 teacher reviewer and up to 2 student/volunteer reviewers
 def get_num_tasks_for_role(review_milestone,role):
 	num_role_per_chunk = 0;
 	if role == Member.STUDENT or role == Member.VOLUNTEER:

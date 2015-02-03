@@ -16,10 +16,10 @@ assert(use_test_db)
 # print "assignment count:", Assignment.objects.using('test').count()
 
 # FYI: this logging does not show transaction queries
-# import logging
-# l = logging.getLogger('django.db.backends')
-# l.setLevel(logging.DEBUG)
-# l.addHandler(logging.StreamHandler())
+import logging
+l = logging.getLogger('django.db.backends')
+l.setLevel(logging.DEBUG)
+l.addHandler(logging.StreamHandler())
 
 #@transaction.commit_manually(using='test')
 def run_test():
