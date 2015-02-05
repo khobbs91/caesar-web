@@ -15,7 +15,6 @@ MANAGERS = ADMINS
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        # 'ENGINE': 'django.db.backends.mysql',
         'NAME': 'caesar.db',
         'USER': '',
         'PASSWORD': '',
@@ -177,7 +176,6 @@ DEBUG_TOOLBAR_PANELS = (
     'debug_toolbar.panels.sql.SQLDebugPanel',
     'debug_toolbar.panels.signals.SignalDebugPanel',
     'debug_toolbar.panels.logger.LoggingPanel',
-    'debug_toolbar.panels.profiling.ProfilingDebugPanel',
 )
 
 # PROJECT SPECIFIC SETTINGS

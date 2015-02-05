@@ -234,7 +234,7 @@ def view_all_chunks(request, viewtype, submission_id):
     formatter = HtmlFormatter(cssclass='syntax', nowrap=True)
     for afile in files:
         staff_lines = StaffMarker.objects.filter(chunk__file=afile).order_by('start_line', 'end_line')
-    	lexer = get_lexer_for_filename(afile.path)
+        lexer = get_lexer_for_filename(afile.path)
         #prepare the file - get the lines that are part of chunk and the ones that aren't
         highlighted_lines_for_file = []
         numbers, lines = zip(*afile.lines)
